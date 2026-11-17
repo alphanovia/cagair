@@ -22,15 +22,16 @@ It is also a learning project. It is built openly, from the signal level up, so 
 2. **Consent is visible.** It is always obvious when Cagair is listening, recording or off. Off means off.
 3. **Open by default.** Firmware, hardware choices, wiring and decisions are published, along with the mistakes.
 4. **Assistant-agnostic.** Cagair is the ears and the voice, not the brain. It should work with whichever self-hosted assistant you choose.
-5. **Small, honest steps.** Each milestone is something that actually works on real hardware before the next one starts. The README only claims what exists.
-6. **Inclusive.** Affordable, off-the-shelf parts, clear documentation, and a design that should work for many voices, accents and needs.
+5. **Optional harness.** Cagair will provide its own server-side harness to get you started, but it will never be required. The device will speak an open protocol, so you can plug it straight into your own stack instead.
+6. **Small, honest steps.** Each milestone is something that actually works on real hardware before the next one starts. The README only claims what exists.
+7. **Inclusive.** Affordable, off-the-shelf parts, clear documentation, and a design that should work for many voices, accents and needs.
 
 ## Non-goals
 
 To keep the vision sharp, Cagair is explicitly **not**:
 
 - **A cloud service or app ecosystem.** There is no Cagair account, no hosted backend, no subscription.
-- **An AI model.** Cagair does not train or ship a language model. It connects to one you run.
+- **An AI model.** Cagair does not train or ship a language model. Its harness connects to one you run.
 - **A covert recorder.** It is not designed to record people without their knowledge. Recording states are visible by design.
 - **A smartphone replacement.** No screen, no apps, no notifications feed.
 - **A finished consumer product (yet).** A small crowdfunded run may come later, but only once the open design is proven.
@@ -50,15 +51,22 @@ The active assistant mode is the most ambitious and the most sensitive. It will 
 
 ## How it works (planned)
 
+Cagair has two parts: the **wearable**, and an **optional harness** that runs on a machine you own.
+
 ```
-  [ Cagair wearable ]  --- Wi-Fi --->  [ Your server ]  --->  [ Your AI assistant ]
-   mics, speaker,                       speech-to-text,         self-hosted, your
-   button, LED                          text-to-speech          choice of model
-         ^                                     |
-         +------------- spoken reply ----------+
+  [ Cagair wearable ]  --- Wi-Fi --->  [ Cagair harness ]  --->  [ Your AI assistant ]
+   mics, speaker,                       (optional)               self-hosted, your
+   button, LED                          receives audio,          choice of model
+         ^                              speech-to-text,
+         |                              text-to-speech
+         +------------- spoken reply -------+
 ```
 
-The wearable captures audio, streams it to a server you host, and plays back the reply. The details of the protocol and server are still being designed.
+- **The wearable** captures audio, streams it over Wi-Fi, and plays back the reply.
+- **The harness** is Cagair's self-hosted server software. It receives the audio stream, turns speech into text, passes it to your assistant, and turns the answer back into speech. It is where mode logic that is too heavy for the device can live, such as producing the transcript, summary and to-dos of the meeting mode.
+- **Bring your own stack.** The harness is optional. The protocol between the wearable and the server will be documented, so you can point the device at your own server or an existing voice pipeline and skip the harness entirely.
+
+The protocol and the harness are still being designed.
 
 ## Hardware (current prototype)
 
@@ -83,10 +91,11 @@ Small steps, each one working on real hardware before the next:
 - [ ] **2. Hear.** Capture audio from the I2S microphones and inspect the signal.
 - [ ] **3. Speak.** Play a tone, then a sound clip, through the amplifier and speaker.
 - [ ] **4. Loopback.** Microphone to speaker on the device.
-- [ ] **5. Stream.** Send audio over Wi-Fi to a small server on your own machine.
-- [ ] **6. Converse.** Server runs speech-to-text, your assistant replies, text-to-speech plays it back.
-- [ ] **7. Modes.** Off, wake word, meeting / interview, then active assistant.
-- [ ] **8. Wear it.** Smaller speaker, battery, enclosure.
+- [ ] **5. Stream.** Send audio over Wi-Fi to a first, minimal version of the harness on your own machine.
+- [ ] **6. Converse.** The harness runs speech-to-text, your assistant replies, text-to-speech plays it back.
+- [ ] **7. Open protocol.** Document the device-to-server protocol so the harness is truly optional and anyone can bring their own stack.
+- [ ] **8. Modes.** Off, wake word, meeting / interview, then active assistant.
+- [ ] **9. Wear it.** Smaller speaker, battery, enclosure.
 
 ## Inspiration
 
