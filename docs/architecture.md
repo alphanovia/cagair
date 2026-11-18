@@ -65,10 +65,10 @@ flowchart TB
     bystander -. "voice" .-> wearable
 
     wearable <-->|"open protocol<br/><i>local network only, for now</i>"| server
-    server -- "transcript or raw audio<br/><i>assistant API</i>" --> own_harness
+    server -- "transcript or raw audio<br/><i>assistant API: OpenAI chat completions</i>" --> own_harness
     server -. "or" .-> third_party
-    own_harness -- "prompts" --> models
-    third_party -- "prompts" --> models
+    own_harness -- "prompts<br/><i>OpenAI API</i>" --> models
+    third_party -- "prompts<br/><i>OpenAI API</i>" --> models
 
     classDef person fill:#08427b,stroke:#052e56,color:#fff
     classDef container fill:#438dd5,stroke:#2e6295,color:#fff
@@ -124,16 +124,30 @@ Two rules from today keep that door open:
 1. **One protocol.** The wearable speaks the same device protocol whatever the network path. Only the address would change.
 2. **The device authenticates itself.** Even on the local network, the wearable proves who it is to the server with its own key or token, so the network is never the only protection.
 
+### The two APIs behind the server
+
+**Harness to model: the OpenAI API (decided).** The harness calls the model runtime through the OpenAI-compatible API, which Ollama, llama.cpp, vLLM and most other runtimes already serve. Any model you can run behind that API works.
+
+**Server to harness: OpenAI chat completions too (proposed).** The Cagair server is just another OpenAI-compatible client, and the harness looks to it like a model endpoint. This is the only API that third-party harnesses such as Hermes Agent already expose, so swapping the harness means changing a URL, a key and a model name, nothing else.
+
+How Cagair uses it:
+
+- **One request per turn.** The server sends the transcript as a user message and keeps the conversation history, or lets the harness keep it where the harness supports sessions.
+- **Streaming replies.** The server asks for a streamed answer and starts speaking at the first full sentence, so the wearable does not wait for the whole reply.
+- **Raw audio when configured.** For an audio-capable harness, the server sends an `input_audio` part in the message instead of the transcript.
+- **Meeting mode is a single request.** The full transcript goes in with an instruction asking for a summary and to-dos. Where the harness supports structured output, the server asks for JSON; otherwise it reads plain text.
+- **The Cagair harness speaks the same API.** It may accept optional extra fields, such as the mode and timestamps, that other harnesses simply ignore. Nothing Cagair needs depends on them.
+
 **Two seams make Cagair open:**
 
 1. **Device protocol** (wearable ↔ server). Documented, so anyone can replace the Cagair server with their own stack.
-2. **Assistant API** (server ↔ harness). Transcript or audio in, text out, so the brain can be swapped without touching the device.
+2. **Assistant API** (server ↔ harness). OpenAI chat completions: transcript or audio in, text out, so the brain can be swapped without touching the device.
 
 ## Open questions
 
 These are the decisions this draft does not settle yet.
 
-1. **Which assistant API?** OpenAI-compatible chat completions is the common denominator today. Meeting mode may need more than a chat turn, such as a long transcript in and a structured summary and to-dos out.
+1. **Is chat completions enough between server and harness?** Proposed above. The risk is that it has no standard way to say "this is a meeting, not a command" or to let the harness speak first (a reminder, for example). That may need a small Cagair extension later.
 2. **Where does the "act, record or ignore" filter live?** On the wearable (more private, less capable), in the server (drawn here), or in the harness.
 3. **Does the server keep data?** Recordings, transcripts and to-dos have to live somewhere. That may be another container (a data store) owned by the server, or it may belong to the harness.
 4. **How to work away from home securely?** Deferred until after the first milestone; see [Local network only, for now](#local-network-only-for-now).
