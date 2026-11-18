@@ -58,7 +58,7 @@ flowchart TB
     wearable -- "spoken reply, LED" --> wearer
     bystander -. "voice" .-> wearable
 
-    wearable <-- "audio both ways, mode, events<br/><i>open protocol over Wi-Fi</i>" --> server
+    wearable <-->|"audio both ways, mode, events<br/><i>open protocol over Wi-Fi</i>"| server
     server -- "text in, text out<br/><i>assistant API</i>" --> own_assistant
     server -. "or" .-> third_party
     server -- "speech-to-text, text-to-speech" --> models
