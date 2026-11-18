@@ -66,7 +66,7 @@ Cagair has two parts: the **wearable**, and an **optional harness** that runs on
 - **The harness** is Cagair's self-hosted server software. It receives the audio stream, turns speech into text, passes it to your assistant, and turns the answer back into speech. It is where mode logic that is too heavy for the device can live, such as producing the transcript, summary and to-dos of the meeting mode.
 - **Bring your own stack.** The harness is optional. The protocol between the wearable and the server will be documented, so you can point the device at your own server or an existing voice pipeline and skip the harness entirely.
 
-The protocol and the harness are still being designed.
+The protocol and the harness are still being designed. The draft system architecture is in [docs/architecture.md](docs/architecture.md).
 
 ## Hardware (current prototype)
 
