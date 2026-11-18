@@ -65,7 +65,7 @@ flowchart TB
     bystander -. "voice" .-> wearable
 
     wearable <-->|"open protocol<br/><i>local network only, for now</i>"| server
-    server -- "transcript or raw audio<br/><i>assistant API: OpenAI chat completions</i>" --> own_harness
+    server -- "messages: transcript or audio<br/><i>Cagair message protocol</i>" --> own_harness
     server -. "or" .-> third_party
     own_harness -- "prompts<br/><i>OpenAI API</i>" --> models
     third_party -- "prompts<br/><i>OpenAI API</i>" --> models
@@ -85,7 +85,7 @@ flowchart TB
 | **Wearable** | ESP32-S3, on you | Capture and play audio, show clearly when it is listening, recording or off. Stays dumb on purpose: no assistant logic lives here. |
 | **Cagair server** | A machine you own (home server, NAS, laptop) | The only thing the wearable talks to. Speaks the open protocol, runs the modes, records, and owns speech-to-text and text-to-speech. It decides, per mode, whether and when to call the harness, and never calls a model directly. |
 | **Cagair harness** *(optional)* | A machine you own, often the same as the server | Cagair's own assistant: the counselor persona, memory, summaries and to-dos. Skip it and point the server at another harness instead. |
-| **Third-party harness** *(external)* | Wherever you run it | Hermes Agent and similar. Swappable with the Cagair harness because both sit behind the same assistant API. |
+| **Third-party harness** *(external)* | Wherever you run it | Hermes Agent and similar. Swappable with the Cagair harness through a small Cagair plugin, the same way it connects to Telegram or Signal. |
 | **Model runtime** *(external)* | Often a separate machine with a GPU | Serves the models the harness calls. Cagair does not ship models, it connects to ones you run. |
 
 ### How the modes use the containers
@@ -104,7 +104,7 @@ The server does not forward every word straight to the harness. Each mode decide
 What the server sends to the harness is a **configuration of your setup**, chosen by what your harness can accept:
 
 - **Transcript (default).** The server runs speech-to-text and sends text. This works with any harness, since every one of them accepts text.
-- **Raw audio.** The server sends the audio itself, for a harness and model that can listen directly, which keeps tone and hesitations the transcript loses. The OpenAI chat completions format allows audio parts in a message, but only audio-capable models understand them, and few self-hosted harnesses pass them through today (Hermes Agent, for example, takes text only).
+- **Raw audio.** The server sends the audio itself, for a harness and model that can listen directly, which keeps tone and hesitations the transcript loses. The OpenAI chat completions format allows audio parts in a message, but only audio-capable models understand them, and few self-hosted harnesses pass them through that API today. Messaging channels are friendlier here: Hermes Agent, for example, accepts voice messages on many of its platforms and transcribes them itself.
 
 Either way, the reply comes back as text, and the server turns it into speech for the wearable.
 
@@ -128,26 +128,31 @@ Two rules from today keep that door open:
 
 **Harness to model: the OpenAI API (decided).** The harness calls the model runtime through the OpenAI-compatible API, which Ollama, llama.cpp, vLLM and most other runtimes already serve. Any model you can run behind that API works.
 
-**Server to harness: OpenAI chat completions too (proposed).** The Cagair server is just another OpenAI-compatible client, and the harness looks to it like a model endpoint. This is the only API that third-party harnesses such as Hermes Agent already expose, so swapping the harness means changing a URL, a key and a model name, nothing else.
+**Server to harness: a messaging channel (proposed).** To the harness, Cagair looks like one more messaging app, next to Telegram or Signal. This is how self-hosted harnesses already take messages from the outside world:
 
-How Cagair uses it:
+- **[Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/)** runs a messaging gateway with one *platform adapter* per app (Telegram, Discord, Signal, Matrix and about twenty more). An adapter is a small Python plugin with `connect()`, `send()` and an inbound `handle_message(event)`; each event carries the text, the sender and the chat it belongs to. The gateway keeps one session per chat, handles voice messages on many platforms, and can send messages on its own, such as cron results. Custom adapters can be [added as plugins](https://hermes-agent.nousresearch.com/docs/developer-guide/adding-platform-adapters).
+- **[OpenClaw](https://docs.openclaw.ai/plugins/sdk-channel-plugins.md)** does the same with *channel plugins* written in TypeScript: the channel owns its inbound pipeline, sends text and media out, and keys conversations by a session. Heartbeats and scheduled announcements reach the user through the same channel.
+- **Both also offer an OpenAI-compatible endpoint**, but it is the narrow door: Hermes's API server, for example, leaves out text-to-speech and clarifying questions, and nothing can arrive unprompted.
 
-- **One request per turn.** The server sends the transcript as a user message and keeps the conversation history, or lets the harness keep it where the harness supports sessions.
-- **Streaming replies.** The server asks for a streamed answer and starts speaking at the first full sentence, so the wearable does not wait for the whole reply.
-- **Raw audio when configured.** For an audio-capable harness, the server sends an `input_audio` part in the message instead of the transcript.
-- **Meeting mode is a single request.** The full transcript goes in with an instruction asking for a summary and to-dos. Where the harness supports structured output, the server asks for JSON; otherwise it reads plain text.
-- **The Cagair harness speaks the same API.** It may accept optional extra fields, such as the mode and timestamps, that other harnesses simply ignore. Nothing Cagair needs depends on them.
+So Cagair defines a small **Cagair message protocol** between server and harness, shaped like a chat app:
+
+- **Messages, not calls.** Each message has an id, a conversation, a sender, the mode it was captured in, timestamps, and a body: text, a transcript, or an audio attachment. Replies are messages too, so they can arrive late.
+- **Conversations map to sessions.** A wake-word exchange, a meeting or a day of active listening is one conversation, so the harness keeps context the way it does for a chat.
+- **Both directions.** The harness can speak first, for a reminder or a finished meeting summary, and the server turns it into speech or holds it until the wearable is listening.
+- **A meeting is a conversation with an attachment.** The full recording or transcript arrives as one message asking for a summary and to-dos.
+- **One small plugin per harness.** A Cagair adapter for Hermes and a Cagair channel for OpenClaw connect to the server, the way their Telegram adapters connect to Telegram. The Cagair harness speaks the protocol natively.
+- **OpenAI chat completions as the fallback.** For any other harness, the server can still send each turn as a chat completion. It works everywhere, but loses replies that arrive unprompted.
 
 **Two seams make Cagair open:**
 
 1. **Device protocol** (wearable ↔ server). Documented, so anyone can replace the Cagair server with their own stack.
-2. **Assistant API** (server ↔ harness). OpenAI chat completions: transcript or audio in, text out, so the brain can be swapped without touching the device.
+2. **Message protocol** (server ↔ harness). Chat-app shaped messages in both directions, with a small plugin per harness, so the brain can be swapped without touching the device.
 
 ## Open questions
 
 These are the decisions this draft does not settle yet.
 
-1. **Is chat completions enough between server and harness?** Proposed above. The risk is that it has no standard way to say "this is a meeting, not a command" or to let the harness speak first (a reminder, for example). That may need a small Cagair extension later.
+1. **Is the messaging-channel shape right?** Proposed above. It means writing and maintaining one plugin per harness (Python for Hermes, TypeScript for OpenClaw), in exchange for sessions, voice and replies that can arrive unprompted.
 2. **Where does the "act, record or ignore" filter live?** On the wearable (more private, less capable), in the server (drawn here), or in the harness.
 3. **Does the server keep data?** Recordings, transcripts and to-dos have to live somewhere. That may be another container (a data store) owned by the server, or it may belong to the harness.
 4. **How to work away from home securely?** Deferred until after the first milestone; see [Local network only, for now](#local-network-only-for-now).
