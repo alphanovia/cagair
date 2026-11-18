@@ -53,7 +53,6 @@ flowchart TB
 
     subgraph cagair_boundary ["Cagair"]
         wearable["📟 <b>Wearable</b><br/><i>ESP32-S3 firmware</i><br/>Mics, speaker, button, LED.<br/>Captures and plays audio, shows the mode"]
-        relay["📱 <b>Phone relay</b><br/><i>Optional: hotspot or relay app</i><br/>Carries the link when you are<br/>away from home Wi-Fi"]
         server["🔀 <b>Cagair server</b><br/><i>Self-hosted service</i><br/>Speaks the open device protocol.<br/>Runs the modes, records,<br/>speech-to-text and text-to-speech"]
         own_harness["🧠 <b>Cagair harness</b><br/><i>Optional, self-hosted</i><br/>Cagair's own assistant:<br/>counselor persona, memory, to-dos"]
     end
@@ -65,9 +64,7 @@ flowchart TB
     wearable -- "spoken reply, LED" --> wearer
     bystander -. "voice" .-> wearable
 
-    wearable <-->|"open protocol<br/><i>at home, over Wi-Fi</i>"| server
-    wearable <-.->|"away from home"| relay
-    relay <-.->|"open protocol<br/><i>over the internet, via Tailscale</i>"| server
+    wearable <-->|"open protocol<br/><i>local network only, for now</i>"| server
     server -- "transcript or raw audio<br/><i>assistant API</i>" --> own_harness
     server -. "or" .-> third_party
     own_harness -- "prompts" --> models
@@ -79,14 +76,13 @@ flowchart TB
     classDef external fill:#999,stroke:#6b6b6b,color:#fff
     class wearer,bystander person
     class wearable,server container
-    class own_harness,relay optional
+    class own_harness optional
     class third_party,models external
 ```
 
 | Container | Runs on | Responsibility |
 | --- | --- | --- |
 | **Wearable** | ESP32-S3, on you | Capture and play audio, show clearly when it is listening, recording or off. Stays dumb on purpose: no assistant logic lives here. |
-| **Phone relay** *(optional)* | Your phone | Keeps the wearable connected when you leave home Wi-Fi. At its simplest it is just the phone's hotspot, with no Cagair code. A relay app on your tailnet could come later, to keep the server private and save the wearable's battery. See [Reaching the server away from home](#reaching-the-server-away-from-home). |
 | **Cagair server** | A machine you own (home server, NAS, laptop) | The only thing the wearable talks to. Speaks the open protocol, runs the modes, records, and owns speech-to-text and text-to-speech. It decides, per mode, whether and when to call the harness, and never calls a model directly. |
 | **Cagair harness** *(optional)* | A machine you own, often the same as the server | Cagair's own assistant: the counselor persona, memory, summaries and to-dos. Skip it and point the server at another harness instead. |
 | **Third-party harness** *(external)* | Wherever you run it | Hermes Agent and similar. Swappable with the Cagair harness because both sit behind the same assistant API. |
@@ -112,26 +108,21 @@ What the server sends to the harness is a **configuration of your setup**, chose
 
 Either way, the reply comes back as text, and the server turns it into speech for the wearable.
 
-### Reaching the server away from home
+### Local network only, for now
 
-**Tailscale is the default** way to reach your Cagair server from outside, so the server never has to be opened to the internet by hand. It shapes the wearable to server link like this:
+**The first milestone supports the local network only.** The wearable and the server sit on the same Wi-Fi, and nothing is exposed to the internet. Working away from home is deferred until the connection can be secured with confidence.
 
-- **At home**, the wearable talks to the server directly over Wi-Fi. Tailscale is not involved.
-- **The wearable cannot simply join your tailnet.** There is no official Tailscale client for microcontrollers. Community ports for the ESP32-S3 exist ([MicroLink](https://components.espressif.com/components/fugo101/microlink), for example), but they are young, and one [voice experiment on an ESP32-S3](https://lilting.ch/en/articles/m5stack-cores3-tailscale-direct-voice-server) found them too slow for live voice when traffic goes through Tailscale's relays.
-- **A plain phone hotspot is not enough on its own.** Devices tethered to a phone generally do not go through the phone's VPN, so the wearable on your hotspot cannot see your tailnet.
+Notes for when it comes back:
 
-That leaves three ways to bridge the gap, from simplest to most private:
+- **Tailscale is the preferred direction** for reaching the server from outside.
+- **The wearable cannot simply join a tailnet.** There is no official Tailscale client for microcontrollers. Community ports for the ESP32-S3 exist ([MicroLink](https://components.espressif.com/components/fugo101/microlink), for example), but they are young, and one [voice experiment on an ESP32-S3](https://lilting.ch/en/articles/m5stack-cores3-tailscale-direct-voice-server) found them too slow for live voice through Tailscale's relays.
+- **A plain phone hotspot is not enough on its own.** Devices tethered to a phone generally do not go through the phone's VPN.
+- **Candidates:** a phone hotspot plus [Tailscale Funnel](https://tailscale.com/kb/1223/funnel) (a public HTTPS address, so it needs solid device authentication), or Tailscale on the wearable once the ports mature. A phone relay app has been ruled out.
 
-| Option | How it works | Trade-off |
-| --- | --- | --- |
-| **Hotspot + Tailscale Funnel** | The server publishes one public HTTPS address through [Funnel](https://tailscale.com/kb/1223/funnel). The wearable uses that address everywhere, at home and away. | No app to build. The server is reachable from the internet, so device authentication is mandatory. |
-| **Phone relay app** | A Cagair app on your phone, which is on your tailnet, forwards the wearable's traffic to the server. | The server stays private. An app has to be built and kept running on the phone. |
-| **Tailscale on the wearable** | The firmware joins the tailnet itself, with a community port. | No phone logic. Costs memory, battery and maturity; worth watching, not building on yet. |
+Two rules from today keep that door open:
 
-Whatever the path, two rules keep the design simple:
-
-1. **One protocol.** The wearable speaks the same device protocol at home, through a relay or through Funnel. Only the address changes.
-2. **The device authenticates itself.** The wearable proves who it is to the server with its own key or token, independent of Tailscale. The network path is never the only protection.
+1. **One protocol.** The wearable speaks the same device protocol whatever the network path. Only the address would change.
+2. **The device authenticates itself.** Even on the local network, the wearable proves who it is to the server with its own key or token, so the network is never the only protection.
 
 **Two seams make Cagair open:**
 
@@ -145,5 +136,5 @@ These are the decisions this draft does not settle yet.
 1. **Which assistant API?** OpenAI-compatible chat completions is the common denominator today. Meeting mode may need more than a chat turn, such as a long transcript in and a structured summary and to-dos out.
 2. **Where does the "act, record or ignore" filter live?** On the wearable (more private, less capable), in the server (drawn here), or in the harness.
 3. **Does the server keep data?** Recordings, transcripts and to-dos have to live somewhere. That may be another container (a data store) owned by the server, or it may belong to the harness.
-4. **Which away-from-home path comes first?** Hotspot plus Funnel needs no app; a relay app keeps the server private. Whether a relay app does more than forward (buffering, for example) is also open.
+4. **How to work away from home securely?** Deferred until after the first milestone; see [Local network only, for now](#local-network-only-for-now).
 5. **People nearby.** They are part of the system context. How the design respects them (visible LED, an audible cue, a meeting-mode consent step) is a principle, but not yet a design.

@@ -55,14 +55,14 @@ Cagair has three parts: the **wearable**, the **Cagair server** that runs on a m
 
 ```
   [ Cagair wearable ] --- Wi-Fi ---> [ Cagair server ] ---> [ Harness ] ---> [ Model ]
-   mics, speaker,      (or phone     receives audio,       Cagair's own,    runs where
-   button, LED          relay)       runs the modes,       or Hermes        you choose
+   mics, speaker,      (local        receives audio,       Cagair's own,    runs where
+   button, LED          network)     runs the modes,       or Hermes        you choose
          ^                           speech-to-text,       and co
          |                           text-to-speech
          +------------ spoken reply ------+
 ```
 
-- **The wearable** captures audio, streams it over Wi-Fi (or through your phone when you are away from home), and plays back the reply.
+- **The wearable** captures audio, streams it over your local Wi-Fi, and plays back the reply. Working away from home comes later, once it can be done securely.
 - **The Cagair server** receives the audio stream and runs the modes. It turns speech into text, passes it to your harness, and turns the answer back into speech. It is where mode logic that is too heavy for the device lives, such as recording a meeting before it is summarized.
 - **The harness** is the assistant: it calls the model, keeps memory and produces things like the summary and to-dos of the meeting mode. Cagair will offer its own, but you can use another one, such as Hermes Agent, instead.
 - **Bring your own stack.** The protocol between the wearable and the server will be documented, so you can point the device at your own server or an existing voice pipeline too.
